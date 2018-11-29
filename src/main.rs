@@ -29,10 +29,26 @@ mod db;
 
 #[get("/")]
 fn read() -> Json<Value> {
-    Json(json!([
-        "hero1",
-        "hero2"
-        ]))
+    // Connect to remote MongoDB database
+    let client = Client::with_uri(db::DATABASE_URL)
+        .ok().expect("Failed to initialize client");
+
+    // Database Authentication
+    let db = client.db("rustcrud");
+    db.auth(db::DATABASE_USER, db::DATABASE_PASSWORD)
+        .ok().expect("AUTH Failed");
+
+    // Connecting to a specific collection
+    let coll = db.collection("test");
+
+    // Retrieving from DB
+    let cursor = coll.find(None, None).ok().expect("Failed to execute find.");
+
+    // Create a Vector with all items in DB
+    let heroes: Vec<_> = cursor.map(|doc| doc.unwrap()).collect();
+
+    // Send back heroes collection
+    Json(json!({"heroes": heroes}))
 }
 
 #[post("/", format = "application/json", data = "<hero>")]
@@ -84,6 +100,6 @@ fn delete(id: i32) -> Json<Value> {
 
 fn main() {
     rocket::ignite()
-        .mount("/hello", routes![read, create, update, delete])
+        .mount("/", routes![read, create, update, delete])
         .launch();
 }
