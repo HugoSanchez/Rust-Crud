@@ -20,6 +20,9 @@ use rocket_contrib::{ Json, Value };
 use mongodb::{ Client, ThreadedClient };
 use mongodb::db::ThreadedDatabase;
 
+// Bson
+use bson::oid::ObjectId;
+
 // Hero mod & struct
 mod hero;
 use hero::{Hero};
@@ -85,17 +88,45 @@ fn create(hero: Json<Hero>) -> Json<Value> {
         Err(_) => response_status = "Unable to store item".to_string(),
     };
 
+    // Send back status feedback as JSON
     Json(json!({"Status": response_status}))
 }
 
 #[put("/<id>", data="<hero>")]
-fn update(id: i32, hero: Json<Hero>) -> Json<Hero>{
+fn update(id: String, hero: Json<Hero>) -> Json<Hero>{
     hero
 }
 
 #[delete("/<id>")]
-fn delete(id: i32) -> Json<Value> {
-    Json(json!({"status": "ok"}))
+fn delete(id: String) -> Json<Value> {
+
+    // Connect to remote MongoDB database
+    let client = Client::with_uri(db::DATABASE_URL)
+        .ok().expect("Failed to initialize client");
+
+    // Database Authentication
+    let db = client.db("rustcrud");
+    db.auth(db::DATABASE_USER, db::DATABASE_PASSWORD)
+        .ok().expect("AUTH Failed");
+
+    // Connecting to a specific collection
+    let coll = db.collection("test");
+
+    // Initialize success variable to triger response
+    let response_status: String;
+
+    // Match the user id to an bson ObjectId
+    // let object_id: &str = &id;
+    // let object_id = ObjectId::with_string(object_id);
+
+    // Delete item from db
+    match coll.delete_one(doc! {"$oid" => id}, None) {
+        Ok(_) => response_status = "Success".to_string(),
+        Err(_) => response_status = "Unable to delete item".to_string(),
+    };
+
+    // Send back response status
+    Json(json!({"status": response_status}))
 }
 
 fn main() {
